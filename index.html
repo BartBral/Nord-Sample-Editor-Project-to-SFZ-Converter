@@ -29,9 +29,11 @@ button:disabled {
 
 <h2>Nord Sample Editor to SFZ Converter</h2>
 
-<p>
+<!-- <p>
   <input type="file" id="fileInput" accept=".nsmpproj,text/plain" />
-</p>
+  <button id="downloadBtn" disabled>Download SFZ</button>
+  <button id="copyBtn" disabled>Copy SFZ to Clipboard</button>
+</p> -->
 
 <div id="feedback"></div>
 
@@ -39,6 +41,7 @@ button:disabled {
 <textarea id="sfzPreview" readonly></textarea>
 
 <p>
+  <input type="file" id="fileInput" accept=".nsmpproj,text/plain" />
   <button id="downloadBtn" disabled>Download SFZ</button>
   <button id="copyBtn" disabled>Copy SFZ to Clipboard</button>
 </p>
@@ -130,7 +133,7 @@ function downloadSFZ(content, filename) {
 }
 
 function parseNsmpproj(text) {
-  const lines = text.split(/\\r?\\n/);
+  const lines = text.split(/\r?\n/);
   const stack = [];
   const root = { children: [] };
   let currentObj = root;
