@@ -29,16 +29,22 @@ button:disabled {
 
 <h2>Nord Sample Editor to SFZ Converter</h2>
 
-<p>
+<!-- <p>
   <input type="file" id="fileInput" accept=".nsmpproj,text/plain" />
   <button id="downloadBtn" disabled>Download SFZ</button>
   <button id="copyBtn" disabled>Copy SFZ to Clipboard</button>
-</p>
+</p> -->
 
 <div id="feedback"></div>
 
 <h3>Generated SFZ Preview:</h3>
 <textarea id="sfzPreview" readonly></textarea>
+
+<p>
+  <input type="file" id="fileInput" accept=".nsmpproj,text/plain" />
+  <button id="downloadBtn" disabled>Download SFZ</button>
+  <button id="copyBtn" disabled>Copy SFZ to Clipboard</button>
+</p>
 
 <script>
 const fileInput = document.getElementById('fileInput');
