@@ -19,18 +19,18 @@ A simple web-based converter that transforms [Nord Sample Editor `.nsmpproj` pro
 ## Supported SFZ opcodes
 | SFZ Opcode      | Description                              | .nsmpproj field            |
 |-----------------|----------------------------------------|----------------------------------------|
-| sample          | Path or filename of the sample WAV     | `m_fullName` (in `audio_file` block)   |
-| offset          | Sample offset (start sample frame)     | `m_start` (in `common_stroke`)          |
-| end             | Sample end (stop sample frame)         | `m_stop` (in `common_stroke`)           |
-| pitch_keycenter | MIDI note number of key center         | `m_rootKey` (in `map_zone`)             |
-| lokey           | Lowest MIDI note in region              | `m_btmNote` (in `map_zone`)             |
-| hikey           | Highest MIDI note in region             | `m_topNote` (in `map_zone`)             |
-| tune            | Pitch tuning in cents                   | `m_detune` (in `map_stroke`)            |
-| loop_start      | Sample frame for loop start              | `m_loopStart` (in `common_stroke`)      |
-| loop_end        | Sample frame for loop end (calculated)  | `m_loopStart + m_loopLengthLong - 1`    |
-| loop_crossfade  | Loop crossfade length in samples        | `m_loopXFadeLengthLong` (in `common_stroke`) |
-| loop_type       | Loop direction (usually 'forward')       | Derived from `m_loopEnabled`             |
-| loop_mode       | Loop mode (e.g., 'loop_continuous')      | `m_loopEnabled` and `m_isOneShot` flags  |
+| [sample](https://sfzformat.com/opcodes/sample)          | Path or filename of the sample WAV     | `m_fullName` (in `audio_file` block)   |
+| [offset](https://sfzformat.com/opcodes/offset)          | Sample offset (start sample frame)     | `m_start` (in `common_stroke`)          |
+| [end](https://sfzformat.com/opcodes/end)             | Sample end (stop sample frame)         | `m_stop` (in `common_stroke`)           |
+| [pitch_keycenter](https://sfzformat.com/opcodes/pitch_keycenter) | MIDI note number of key center         | `m_rootKey` (in `map_zone`)             |
+| [lokey](https://sfzformat.com/opcodes/lokey)           | Lowest MIDI note in region              | `m_btmNote` (in `map_zone`)             |
+| [hikey](https://sfzformat.com/opcodes/hikey)           | Highest MIDI note in region             | `m_topNote` (in `map_zone`)             |
+| [tune](https://sfzformat.com/opcodes/tune)            | Pitch tuning in cents                   | `m_detune` (in `map_stroke`)            |
+| [loop_start](https://sfzformat.com/opcodes/loop_start)      | Sample frame for loop start              | `m_loopStart` (in `common_stroke`)      |
+| [loop_end](https://sfzformat.com/opcodes/loop_end)        | Sample frame for loop end (calculated)  | `m_loopStart + m_loopLengthLong - 1`    |
+| [loop_crossfade](https://sfzformat.com/opcodes/loop_crossfade)  | Loop crossfade length in samples        | `m_loopXFadeLengthLong` (in `common_stroke`) |
+| [loop_type](https://sfzformat.com/opcodes/loop_type)       | Loop direction (usually 'forward')       | Derived from `m_loopEnabled`             |
+| [loop_mode](https://sfzformat.com/opcodes/loop_mode)       | Loop mode (e.g., 'loop_continuous')      | `m_loopEnabled` and `m_isOneShot` flags  |
 
 
 ## Why?
