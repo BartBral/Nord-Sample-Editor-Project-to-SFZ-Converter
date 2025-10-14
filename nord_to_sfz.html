@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nord Sample Editor to SFZ Converter</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 2em; }
+#feedback { margin: 1em 0; background: #f9f9f9; border: 1px solid #ccc; padding: 1em; white-space: pre-line; }
+textarea#sfzPreview {
+  width: 100%;
+  max-width: 900px;
+  height: 400px;
+  font-family: monospace;
+  white-space: pre;
+  resize: vertical;
+  border: 1px solid #ccc;
+  padding: 0.5em;
+  box-sizing: border-box;
+  margin-bottom: 0.5em;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+</style>
+</head>
+<body>
+
+<h2>Nord Sample Editor to SFZ Converter</h2>
+
+<p>
+  <input type="file" id="fileInput" accept=".nsmpproj,text/plain" />
+  <button id="downloadBtn" disabled>Download SFZ</button>
+  <button id="copyBtn" disabled>Copy SFZ to Clipboard</button>
+</p>
+
+<div id="feedback"></div>
+
+<h3>Generated SFZ Preview:</h3>
+<textarea id="sfzPreview" readonly></textarea>
+
+<script>
+const fileInput = document.getElementById('fileInput');
+const downloadBtn = document.getElementById('downloadBtn');
+const copyBtn = document.getElementById('copyBtn');
+const feedbackDiv = document.getElementById('feedback');
+const sfzPreview = document.getElementById('sfzPreview');
+
+let sfzText = null;
+let inputFileName = null;
+
+// Helper: convert MIDI note number (0-127) to note name e.g. 60 -> "C4"
+function midiToNoteName(midi) {
+  const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  if (typeof midi !== 'number' || midi < 0 || midi > 127) return '?';
+  const octave = Math.floor(midi / 12) - 1;
+  const note = noteNames[midi % 12];
+  return note + octave;
+}
+
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  inputFileName = file.name;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const loadedText = reader.result;
+    feedbackDiv.textContent = 'Converting...';
+    try {
+      sfzText = convertNordProjectToSFZ(loadedText);
+      const regionCount = (sfzText.match(/<region>/g) || []).length;
+      feedbackDiv.innerHTML = 
+        `Loaded: <b>${inputFileName}</b> (${loadedText.length} bytes)<br>` +
+        `Converted: <b>${regionCount}</b> regions.<br>` +
+        (regionCount === 0 
+          ? '<span style="color:#b00">No regions detected, check your file format.</span>' 
+          : '<span style="color:#080">Conversion successful!</span>');
+      
+      sfzPreview.value = sfzText;
+      copyBtn.disabled = regionCount === 0;
+      downloadBtn.disabled = regionCount === 0;
+    } catch (err) {
+      feedbackDiv.innerHTML = 
+        `Loaded: <b>${inputFileName}</b><br>` +
+        `<span style="color:#b00">Conversion error: ${err.message}</span>`;
+      sfzPreview.value = '';
+      copyBtn.disabled = true;
+      downloadBtn.disabled = true;
+    }
+  };
+  reader.readAsText(file);
+});
+
+downloadBtn.addEventListener('click', () => {
+  if (!sfzText) return;
+  let outputFileName = inputFileName;
+  if (outputFileName.toLowerCase().endsWith('.nsmpproj')) {
+    outputFileName = outputFileName.slice(0, -('.nsmpproj'.length)) + '.sfz';
+  } else {
+    outputFileName = outputFileName + '.sfz';
+  }
+  downloadSFZ(sfzText, outputFileName);
+});
+
+copyBtn.addEventListener('click', () => {
+  if (!sfzText) return;
+  sfzPreview.select();
+  sfzPreview.setSelectionRange(0, sfzPreview.value.length);
+  try {
+    document.execCommand('copy');
+    copyBtn.textContent = 'Copied!';
+    setTimeout(() => copyBtn.textContent = 'Copy SFZ to Clipboard', 2000);
+  } catch (err) {
+    alert('Copy failed: ' + err.message);
+  }
+});
+
+function downloadSFZ(content, filename) {
+  const blob = new Blob([content], {type:'application/octet-stream'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+function parseNsmpproj(text) {
+  const lines = text.split(/\r?\n/);
+  const stack = [];
+  const root = { children: [] };
+  let currentObj = root;
+
+  function startBlock(name) {
+    const newBlock = { type: name, props: {}, children: [] };
+    if (!currentObj.children) currentObj.children = [];
+    currentObj.children.push(newBlock);
+    stack.push(currentObj);
+    currentObj = newBlock;
+  }
+  function endBlock() {
+    if(stack.length === 0) throw new Error('Extra } detected');
+    currentObj = stack.pop();
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i].trim();
+    if (line === '' || line.startsWith('//')) continue;
+    if (line.endsWith('{')) {
+      const blockName = line.replace('{', '').trim();
+      startBlock(blockName);
+    } else if (line === '}') {
+      endBlock();
+    } else {
+      const equalPos = line.indexOf('=');
+      if (equalPos < 0) continue;
+      const key = line.substring(0, equalPos).trim();
+      let val = line.substring(equalPos + 1).trim();
+      if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
+      const fval = parseFloat(val);
+      if (!isNaN(fval) && val === fval.toString()) val = fval;
+      currentObj.props[key] = val;
+    }
+  }
+  if (stack.length !== 0) throw new Error('Unbalanced braces');
+  return root;
+}
+
+function collectBlocks(block, type) {
+  let result = [];
+  if (block.type === type) result.push(block);
+  for (const child of (block.children || [])) {
+    result = result.concat(collectBlocks(child, type));
+  }
+  return result;
+}
+
+function convertNordProjectToSFZ(text) {
+  const root = parseNsmpproj(text);
+
+  const audioFiles = collectBlocks(root, 'audio_file').map(b => b.props);
+  const commonZones = collectBlocks(root, 'common_zone');
+  const instrumentZones = collectBlocks(root, 'instrument_zone');
+  const mapZones = collectBlocks(root, 'map_zone');
+
+  const audioFileById = new Map(audioFiles.map(af => [af.m_id, af.m_fullName]));
+  const commonStrokeByGlobalId = new Map();
+
+  for (const cz of commonZones) {
+    for (const cst of (cz.children || [])) {
+      if (cst.type === 'common_stroke' && cst.props.m_globalID !== undefined) {
+        commonStrokeByGlobalId.set(cst.props.m_globalID, cst.props);
+      }
+    }
+  }
+
+  const instrumentStrokesByZoneId = new Map();
+  for (const iz of instrumentZones) {
+    const strokes = (iz.children || []).filter(c => c.type === 'instrument_stroke' && c.props.m_globalID !== undefined).map(c => c.props);
+    instrumentStrokesByZoneId.set(iz.props.m_zoneId, strokes);
+  }
+
+  const mapZoneById = new Map();
+  for (const mz of mapZones) {
+    const strokes = (mz.children || []).filter(c => c.type === 'map_stroke' && c.props.m_isEnabled === 1).map(c => c.props);
+    mapZoneById.set(mz.props.m_zoneId, { zone: mz.props, strokes });
+  }
+
+  // Collect all regions to enable sorting by pitch_keycenter
+  let regions = [];
+
+  for (const [zoneId, strokes] of instrumentStrokesByZoneId.entries()) {
+    const mapZoneEntry = mapZoneById.get(zoneId);
+    if (!mapZoneEntry) continue;
+    const { zone: mapZoneProps, strokes: mapStrokes } = mapZoneEntry;
+
+    for (const stroke of strokes) {
+      const commonStroke = commonStrokeByGlobalId.get(stroke.m_globalID);
+      if (!commonStroke) continue;
+
+      const sampleFile = audioFileById.get(commonStroke.m_fileID) || 'unknown.wav';
+      const mapStrokeProps = mapStrokes.find(ms => ms.m_globalID === stroke.m_globalID);
+
+      const lokey = typeof mapZoneProps.m_btmNote === 'number' ? Math.floor(mapZoneProps.m_btmNote) : undefined;
+      const hikey = typeof mapZoneProps.m_topNote === 'number' ? Math.floor(mapZoneProps.m_topNote) : undefined;
+      const pitchKeycenter = typeof mapZoneProps.m_rootKey === 'number' ? Math.floor(mapZoneProps.m_rootKey) : undefined;
+      const tune = (mapStrokeProps && typeof mapStrokeProps.m_detune === 'number') ? Math.floor(mapStrokeProps.m_detune) : 0;
+      const offset = ('m_start' in commonStroke && commonStroke.m_start != null) ? Math.floor(commonStroke.m_start) : undefined;
+      const end = ('m_stop' in commonStroke && commonStroke.m_stop != null) ? Math.floor(commonStroke.m_stop) : undefined;
+
+      const loopStart = (commonStroke.m_loopEnabled === 1 && typeof commonStroke.m_loopStart === 'number') ? Math.floor(commonStroke.m_loopStart) : undefined;
+      const loopEnd = (commonStroke.m_loopEnabled === 1 && typeof commonStroke.m_loopLengthLong === 'number') ?
+        Math.floor(commonStroke.m_loopStart + commonStroke.m_loopLengthLong - 1) : undefined;
+      const loopCrossfade = (commonStroke.m_loopEnabled === 1 && typeof commonStroke.m_loopXFadeLengthLong === 'number' && commonStroke.m_loopXFadeLengthLong > 0) ?
+        Math.floor(commonStroke.m_loopXFadeLengthLong) : undefined;
+
+      const loopType = (commonStroke.m_loopEnabled === 1) ? 'forward' : undefined;
+
+      let loopMode = 'no_loop';
+      if (mapZoneProps.m_isOneShot === 1) loopMode = 'one_shot';
+      else if (commonStroke.m_loopEnabled === 1) loopMode = 'loop_continuous';
+
+      regions.push({
+        pitchKeycenter,
+        lokey,
+        hikey,
+        sampleFile,
+        offset,
+        end,
+        tune,
+        loopStart,
+        loopEnd,
+        loopCrossfade,
+        loopType,
+        loopMode
+      });
+    }
+  }
+
+  // Sort by pitch_keycenter ascending
+  regions.sort((a, b) => {
+    if (a.pitchKeycenter === undefined) return 1;
+    if (b.pitchKeycenter === undefined) return -1;
+    return a.pitchKeycenter - b.pitchKeycenter;
+  });
+
+  let sfz = '<group>\n';
+  for (const region of regions) {
+    // Prepare keyrange comment musical note names
+    const lokeyName = region.lokey !== undefined ? midiToNoteName(region.lokey) : '?';
+    const hikeyName = region.hikey !== undefined ? midiToNoteName(region.hikey) : '?';
+
+    sfz += `<region>  // ${lokeyName}-${hikeyName}\n`;
+    sfz += `sample=${region.sampleFile}\n`;
+
+    // offset and end on same line if both present
+    if (region.offset !== undefined && region.end !== undefined) sfz += `offset=${region.offset} end=${region.end}\n`;
+    else {
+      if (region.offset !== undefined) sfz += `offset=${region.offset}\n`;
+      if (region.end !== undefined) sfz += `end=${region.end}\n`;
+    }
+
+    // pitch_keycenter alone line
+    if (region.pitchKeycenter !== undefined) sfz += `pitch_keycenter=${region.pitchKeycenter}\n`;
+
+    // lokey and hikey on same line
+    let keyRangeLine = [];
+    if (region.lokey !== undefined) keyRangeLine.push(`lokey=${region.lokey}`);
+    if (region.hikey !== undefined) keyRangeLine.push(`hikey=${region.hikey}`);
+    if (keyRangeLine.length > 0) sfz += keyRangeLine.join(' ') + '\n';
+
+    // tune line
+    sfz += `tune=${region.tune}\n`;
+
+    // loop start and end on single line if both present
+    if (region.loopStart !== undefined && region.loopEnd !== undefined)
+      sfz += `loop_start=${region.loopStart} loop_end=${region.loopEnd}\n`;
+    else {
+      if (region.loopStart !== undefined) sfz += `loop_start=${region.loopStart}\n`;
+      if (region.loopEnd !== undefined) sfz += `loop_end=${region.loopEnd}\n`;
+    }
+
+    // loop crossfade
+    if (region.loopCrossfade !== undefined) sfz += `loop_crossfade=${region.loopCrossfade}\n`;
+
+    // loop type
+    if (region.loopType !== undefined) sfz += `loop_type=${region.loopType}\n`;
+
+    // loop mode
+    if (region.loopMode !== undefined) sfz += `loop_mode=${region.loopMode}\n`;
+
+    sfz += '\n';
+  }
+  return sfz;
+}
+
+</script>
+
+</body>
+</html>
