@@ -28,6 +28,8 @@ button:disabled {
 <body>
 
 <h2>Nord Sample Editor Project to SFZ Converter</h2>
+<a href="https://github.com/BartBral/Nord-Sample-Editor-Project-to-SFZ-Converter/blob/main/README.md">More info in readme.md here</a>
+
 <p>
   <input type="file" id="fileInput" accept=".nsmpproj,text/plain" />
 </p>
@@ -184,18 +186,17 @@ function convertNordProjectToSFZ(text){
       const end=Math.floor(cs.m_stop??NaN);
 
       let loopStart, loopEnd, loopCrossfade, loopMode, loopType;
-      let loopVersionComment='';
+      let usingShortLoop = false;
 
       if(cs.m_loopEnabled===1){
         let lenRaw, xfRaw;
         if(cs.m_shortLoopEnabled===1){
           lenRaw=cs.m_loopLengthShort;
           xfRaw=cs.m_loopXFadeShort;
-          loopVersionComment='// short-loop used';
+          usingShortLoop = true;
         } else {
           lenRaw=cs.m_loopLengthLong;
           xfRaw=cs.m_loopXFadeLengthLong;
-          loopVersionComment='// long-loop used';
         }
         const startRaw=cs.m_loopStart;
         loopStart=(startRaw!==undefined&&!isNaN(Number(startRaw)))?Math.floor(Number(startRaw)):undefined;
@@ -207,7 +208,7 @@ function convertNordProjectToSFZ(text){
       } else {
         loopMode='no_loop';
       }
-
+      
       regions.push({
         pitchKeycenter:center,
         lokey:isNaN(lokey)?undefined:lokey,
@@ -221,18 +222,14 @@ function convertNordProjectToSFZ(text){
         loopCrossfade,
         loopType,
         loopMode,
-        loopVersionComment
+        usingShortLoop
       });
     }
   }
-
   regions.sort((a,b)=>(a.pitchKeycenter??999)-(b.pitchKeycenter??999));
 
   let sfz='<group>\n';
   for(const r of regions){
-    // Comment indicating if short or long loop used (or empty)
-    if(r.loopVersionComment) sfz+=r.loopVersionComment + '\n';
-
     sfz+=`<region>  // ${midiToNoteName(r.lokey??0)}-${midiToNoteName(r.hikey??0)}\n`;
     sfz+=`sample=${r.sampleFile}\n`;
     if(r.offset!==undefined&&r.end!==undefined) sfz+=`offset=${r.offset} end=${r.end}\n`;
@@ -253,9 +250,9 @@ function convertNordProjectToSFZ(text){
       if(r.loopStart!==undefined)
         sfz+=`loop_start=${r.loopStart}  // m_loopStart\n`;
       if(r.loopEnd!==undefined)
-        sfz+=`loop_end=${r.loopEnd}  // m_loopStart + m_loopLength${r.loopVersionComment.includes('short')?'Short':'Long'} - 1\n`;
+        sfz+=`loop_end=${r.loopEnd}  // m_loopStart + m_loopLength${r.usingShortLoop ? 'Short' : 'Long'} - 1\n`;
       if(r.loopCrossfade!==undefined)
-        sfz+=`loop_crossfade=${r.loopCrossfade}  // m_loopXFade${r.loopVersionComment.includes('short')?'Short':'LengthLong'}\n`;
+        sfz+=`loop_crossfade=${r.loopCrossfade}  // m_loopXFade${r.usingShortLoop ? 'Short' : 'LengthLong'}\n`;
       if(r.loopType!==undefined)
         sfz+=`loop_type=${r.loopType}\n`;
       sfz+=`loop_mode=${r.loopMode}\n`;
@@ -264,6 +261,7 @@ function convertNordProjectToSFZ(text){
   }
   return sfz;
 }
+
 </script>
 
 </body>
